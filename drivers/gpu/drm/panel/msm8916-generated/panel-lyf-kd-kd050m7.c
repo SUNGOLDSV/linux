@@ -8,6 +8,8 @@
 #include <linux/module.h>
 #include <linux/of.h>
 
+#include <video/mipi_display.h>
+
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_modes.h>
 #include <drm/drm_panel.h>
@@ -24,6 +26,14 @@ static inline struct kd050m7_kd *to_kd050m7_kd(struct drm_panel *panel)
 	return container_of(panel, struct kd050m7_kd, panel);
 }
 
+#define dsi_dcs_write_seq(dsi, seq...) do {				\
+		static const u8 d[] = { seq };				\
+		int ret;						\
+		ret = mipi_dsi_dcs_write_buffer(dsi, d, ARRAY_SIZE(d));	\
+		if (ret < 0)						\
+			return ret;					\
+	} while (0)
+
 static void kd050m7_kd_reset(struct kd050m7_kd *ctx)
 {
 	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
@@ -37,8 +47,270 @@ static void kd050m7_kd_reset(struct kd050m7_kd *ctx)
 static int kd050m7_kd_on(struct kd050m7_kd *ctx)
 {
 	struct mipi_dsi_device *dsi = ctx->dsi;
+	struct device *dev = &dsi->dev;
+	int ret;
 
 	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
+
+	dsi_dcs_write_seq(dsi, 0xe0, 0x00);
+	dsi_dcs_write_seq(dsi, 0xe1, 0x93);
+	dsi_dcs_write_seq(dsi, 0xe2, 0x65);
+	dsi_dcs_write_seq(dsi, 0xe3, 0xf8);
+	dsi_dcs_write_seq(dsi, 0xe0, 0x04);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_LUT, 0x03);
+	dsi_dcs_write_seq(dsi, 0x2b, 0x2b);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_READ_MEMORY_START, 0x44);
+	dsi_dcs_write_seq(dsi, 0xe0, 0x00);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_POWER_SAVE, 0x00);
+	dsi_dcs_write_seq(dsi, 0xe6, 0x02);
+	dsi_dcs_write_seq(dsi, 0xe7, 0x02);
+	dsi_dcs_write_seq(dsi, 0x70, 0x10);
+	dsi_dcs_write_seq(dsi, 0x71, 0x13);
+	dsi_dcs_write_seq(dsi, 0x72, 0x06);
+	dsi_dcs_write_seq(dsi, 0x75, 0x03);
+	dsi_dcs_write_seq(dsi, 0xe0, 0x01);
+	dsi_dcs_write_seq(dsi, 0x00, 0x00);
+	dsi_dcs_write_seq(dsi, 0x01, 0xc7);
+	dsi_dcs_write_seq(dsi, 0x03, 0x00);
+	dsi_dcs_write_seq(dsi, 0x04, 0x9f);
+	dsi_dcs_write_seq(dsi, 0x0a, 0x07);
+	dsi_dcs_write_seq(dsi, 0x0c, 0x74);
+	dsi_dcs_write_seq(dsi, 0x17, 0x00);
+	dsi_dcs_write_seq(dsi, 0x18, 0xe7);
+	dsi_dcs_write_seq(dsi, 0x19, 0x01);
+	dsi_dcs_write_seq(dsi, 0x1a, 0x00);
+	dsi_dcs_write_seq(dsi, 0x1b, 0xe7);
+	dsi_dcs_write_seq(dsi, 0x1c, 0x01);
+	dsi_dcs_write_seq(dsi, 0x1f, 0x3e);
+	dsi_dcs_write_seq(dsi, 0x20, 0x3d);
+	dsi_dcs_write_seq(dsi, 0x21, 0x3d);
+	dsi_dcs_write_seq(dsi, 0x22, 0xf8);
+	dsi_dcs_write_seq(dsi, 0x37, 0x09);
+	dsi_dcs_write_seq(dsi, 0x38, 0x04);
+	dsi_dcs_write_seq(dsi, 0x39, 0x08);
+
+	ret = mipi_dsi_dcs_set_pixel_format(dsi, 0x12);
+	if (ret < 0) {
+		dev_err(dev, "Failed to set pixel format: %d\n", ret);
+		return ret;
+	}
+
+	dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_MEMORY_CONTINUE, 0x78);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_READ_MEMORY_CONTINUE, 0xff);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_READ_MEMORY_CONTINUE, 0xff);
+	dsi_dcs_write_seq(dsi, 0x3f, 0xff);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_SET_VSYNC_TIMING, 0x04);
+	dsi_dcs_write_seq(dsi, 0x41, 0xa0);
+	dsi_dcs_write_seq(dsi, 0x43, 0x09);
+	dsi_dcs_write_seq(dsi, 0x44, 0x07);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_GET_SCANLINE, 0x30);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_POWER_SAVE, 0x01);
+	dsi_dcs_write_seq(dsi, 0x56, 0x01);
+	dsi_dcs_write_seq(dsi, 0x57, 0x69);
+	dsi_dcs_write_seq(dsi, 0x58, 0x0a);
+	dsi_dcs_write_seq(dsi, 0x59, 0x0a);
+	dsi_dcs_write_seq(dsi, 0x5a, 0x2a);
+	dsi_dcs_write_seq(dsi, 0x5b, 0x1b);
+	dsi_dcs_write_seq(dsi, 0x5c, 0x16);
+	dsi_dcs_write_seq(dsi, 0x5d, 0x7f);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_SET_CABC_MIN_BRIGHTNESS, 0x48);
+	dsi_dcs_write_seq(dsi, 0x5f, 0x36);
+	dsi_dcs_write_seq(dsi, 0x60, 0x29);
+	dsi_dcs_write_seq(dsi, 0x61, 0x24);
+	dsi_dcs_write_seq(dsi, 0x62, 0x16);
+	dsi_dcs_write_seq(dsi, 0x63, 0x1b);
+	dsi_dcs_write_seq(dsi, 0x64, 0x05);
+	dsi_dcs_write_seq(dsi, 0x65, 0x1d);
+	dsi_dcs_write_seq(dsi, 0x66, 0x1b);
+	dsi_dcs_write_seq(dsi, 0x67, 0x1a);
+	dsi_dcs_write_seq(dsi, 0x68, 0x38);
+	dsi_dcs_write_seq(dsi, 0x69, 0x29);
+	dsi_dcs_write_seq(dsi, 0x6a, 0x33);
+	dsi_dcs_write_seq(dsi, 0x6b, 0x35);
+	dsi_dcs_write_seq(dsi, 0x6c, 0x24);
+	dsi_dcs_write_seq(dsi, 0x6d, 0x1a);
+	dsi_dcs_write_seq(dsi, 0x6e, 0x12);
+	dsi_dcs_write_seq(dsi, 0x6f, 0x01);
+	dsi_dcs_write_seq(dsi, 0x70, 0x7f);
+	dsi_dcs_write_seq(dsi, 0x71, 0x48);
+	dsi_dcs_write_seq(dsi, 0x72, 0x36);
+	dsi_dcs_write_seq(dsi, 0x73, 0x29);
+	dsi_dcs_write_seq(dsi, 0x74, 0x24);
+	dsi_dcs_write_seq(dsi, 0x75, 0x16);
+	dsi_dcs_write_seq(dsi, 0x76, 0x1b);
+	dsi_dcs_write_seq(dsi, 0x77, 0x05);
+	dsi_dcs_write_seq(dsi, 0x78, 0x1d);
+	dsi_dcs_write_seq(dsi, 0x79, 0x1a);
+	dsi_dcs_write_seq(dsi, 0x7a, 0x1a);
+	dsi_dcs_write_seq(dsi, 0x7b, 0x36);
+	dsi_dcs_write_seq(dsi, 0x7c, 0x24);
+	dsi_dcs_write_seq(dsi, 0x7d, 0x2e);
+	dsi_dcs_write_seq(dsi, 0x7e, 0x20);
+	dsi_dcs_write_seq(dsi, 0x7f, 0x24);
+	dsi_dcs_write_seq(dsi, 0x80, 0x1a);
+	dsi_dcs_write_seq(dsi, 0x81, 0x12);
+	dsi_dcs_write_seq(dsi, 0x82, 0x01);
+	dsi_dcs_write_seq(dsi, 0xe0, 0x02);
+	dsi_dcs_write_seq(dsi, 0x00, 0x00);
+	dsi_dcs_write_seq(dsi, 0x01, 0x04);
+	dsi_dcs_write_seq(dsi, 0x02, 0x06);
+	dsi_dcs_write_seq(dsi, 0x03, 0x08);
+	dsi_dcs_write_seq(dsi, 0x04, 0x0a);
+	dsi_dcs_write_seq(dsi, 0x05, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x06, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x07, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x08, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x09, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x0a, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x0b, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x0c, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x0d, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x0e, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x0f, 0x1e);
+	dsi_dcs_write_seq(dsi, 0x10, 0x1e);
+	dsi_dcs_write_seq(dsi, 0x11, 0x1e);
+	dsi_dcs_write_seq(dsi, 0x12, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x13, 0x1e);
+	dsi_dcs_write_seq(dsi, 0x14, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x15, 0x10);
+	dsi_dcs_write_seq(dsi, 0x16, 0x01);
+	dsi_dcs_write_seq(dsi, 0x17, 0x05);
+	dsi_dcs_write_seq(dsi, 0x18, 0x07);
+	dsi_dcs_write_seq(dsi, 0x19, 0x09);
+	dsi_dcs_write_seq(dsi, 0x1a, 0x0b);
+	dsi_dcs_write_seq(dsi, 0x1b, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x1c, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x1d, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x1e, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x1f, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x20, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x21, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x22, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x23, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x24, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x25, 0x1e);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_SET_GAMMA_CURVE, 0x1e);
+	dsi_dcs_write_seq(dsi, 0x27, 0x1e);
+	dsi_dcs_write_seq(dsi, 0x28, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x29, 0x1e);
+	dsi_dcs_write_seq(dsi, 0x2a, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x2b, 0x11);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_MEMORY_START, 0x11);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_LUT, 0x0b);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_READ_MEMORY_START, 0x09);
+	dsi_dcs_write_seq(dsi, 0x2f, 0x07);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_SET_PARTIAL_ROWS, 0x05);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_SET_PARTIAL_COLUMNS, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x32, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x33, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x34, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x35, 0x1f);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_SET_ADDRESS_MODE, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x37, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x38, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x39, 0x1f);
+
+	ret = mipi_dsi_dcs_set_pixel_format(dsi, 0x1f);
+	if (ret < 0) {
+		dev_err(dev, "Failed to set pixel format: %d\n", ret);
+		return ret;
+	}
+
+	dsi_dcs_write_seq(dsi, 0x3b, 0x1e);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_MEMORY_CONTINUE, 0x1e);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_SET_3D_CONTROL, 0x1e);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_READ_MEMORY_CONTINUE, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x3f, 0x1f);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_SET_VSYNC_TIMING, 0x1e);
+	dsi_dcs_write_seq(dsi, 0x41, 0x01);
+	dsi_dcs_write_seq(dsi, 0x42, 0x10);
+	dsi_dcs_write_seq(dsi, 0x43, 0x0a);
+	dsi_dcs_write_seq(dsi, 0x44, 0x08);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_GET_SCANLINE, 0x06);
+	dsi_dcs_write_seq(dsi, 0x46, 0x04);
+	dsi_dcs_write_seq(dsi, 0x47, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x48, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x49, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x4a, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x4b, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x4c, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x4d, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x4e, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x4f, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x50, 0x1f);
+
+	ret = mipi_dsi_dcs_set_display_brightness(dsi, 0x001e);
+	if (ret < 0) {
+		dev_err(dev, "Failed to set display brightness: %d\n", ret);
+		return ret;
+	}
+
+	dsi_dcs_write_seq(dsi, 0x52, 0x1e);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_CONTROL_DISPLAY, 0x1e);
+	dsi_dcs_write_seq(dsi, 0x54, 0x1f);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_POWER_SAVE, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x56, 0x1e);
+	dsi_dcs_write_seq(dsi, 0x57, 0x00);
+	dsi_dcs_write_seq(dsi, 0x58, 0x00);
+	dsi_dcs_write_seq(dsi, 0x59, 0x00);
+	dsi_dcs_write_seq(dsi, 0x5a, 0x00);
+	dsi_dcs_write_seq(dsi, 0x5b, 0x10);
+	dsi_dcs_write_seq(dsi, 0x5c, 0x01);
+	dsi_dcs_write_seq(dsi, 0x5d, 0x30);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_SET_CABC_MIN_BRIGHTNESS, 0x01);
+	dsi_dcs_write_seq(dsi, 0x5f, 0x02);
+	dsi_dcs_write_seq(dsi, 0x60, 0x30);
+	dsi_dcs_write_seq(dsi, 0x61, 0x01);
+	dsi_dcs_write_seq(dsi, 0x62, 0x02);
+	dsi_dcs_write_seq(dsi, 0x63, 0x03);
+	dsi_dcs_write_seq(dsi, 0x64, 0x6b);
+	dsi_dcs_write_seq(dsi, 0x65, 0x55);
+	dsi_dcs_write_seq(dsi, 0x66, 0x0b);
+	dsi_dcs_write_seq(dsi, 0x67, 0x73);
+	dsi_dcs_write_seq(dsi, 0x68, 0x07);
+	dsi_dcs_write_seq(dsi, 0x69, 0x06);
+	dsi_dcs_write_seq(dsi, 0x6a, 0x6b);
+	dsi_dcs_write_seq(dsi, 0x6b, 0x00);
+	dsi_dcs_write_seq(dsi, 0x6c, 0x00);
+	dsi_dcs_write_seq(dsi, 0x6d, 0x04);
+	dsi_dcs_write_seq(dsi, 0x6e, 0x04);
+	dsi_dcs_write_seq(dsi, 0x6f, 0x88);
+	dsi_dcs_write_seq(dsi, 0x70, 0x00);
+	dsi_dcs_write_seq(dsi, 0x71, 0x00);
+	dsi_dcs_write_seq(dsi, 0x72, 0x06);
+	dsi_dcs_write_seq(dsi, 0x73, 0x7b);
+	dsi_dcs_write_seq(dsi, 0x74, 0x00);
+	dsi_dcs_write_seq(dsi, 0x75, 0x87);
+	dsi_dcs_write_seq(dsi, 0x76, 0x00);
+	dsi_dcs_write_seq(dsi, 0x77, 0x5d);
+	dsi_dcs_write_seq(dsi, 0x78, 0x18);
+	dsi_dcs_write_seq(dsi, 0x79, 0x1f);
+	dsi_dcs_write_seq(dsi, 0x7a, 0x00);
+	dsi_dcs_write_seq(dsi, 0x7b, 0x00);
+	dsi_dcs_write_seq(dsi, 0x7c, 0x00);
+	dsi_dcs_write_seq(dsi, 0x7d, 0x03);
+	dsi_dcs_write_seq(dsi, 0x7e, 0x7b);
+	dsi_dcs_write_seq(dsi, 0xe0, 0x04);
+	dsi_dcs_write_seq(dsi, 0x09, 0x10);
+	dsi_dcs_write_seq(dsi, 0x2b, 0x2b);
+	dsi_dcs_write_seq(dsi, MIPI_DCS_READ_MEMORY_START, 0x44);
+	dsi_dcs_write_seq(dsi, 0xe0, 0x00);
+	dsi_dcs_write_seq(dsi, 0xe6, 0x02);
+	dsi_dcs_write_seq(dsi, 0xe7, 0x02);
+
+	ret = mipi_dsi_dcs_exit_sleep_mode(dsi);
+	if (ret < 0) {
+		dev_err(dev, "Failed to exit sleep mode: %d\n", ret);
+		return ret;
+	}
+	msleep(120);
+
+	ret = mipi_dsi_dcs_set_display_on(dsi);
+	if (ret < 0) {
+		dev_err(dev, "Failed to set display on: %d\n", ret);
+		return ret;
+	}
+	msleep(20);
 
 	return 0;
 }
